@@ -103,14 +103,14 @@
   </div>
 
   <script type="text/javascript">
-      const URL = "./my_model/";
+      const MODEL_URL = "./my_model/";
       let model, webcam, labelContainer, maxPredictions;
 
       // Load model once
       async function loadModel() {
           if (!model) {
-              const modelURL = URL + "model.json";
-              const metadataURL = URL + "metadata.json";
+              const modelURL = MODEL_URL + "model.json";
+              const metadataURL = MODEL_URL + "metadata.json";
               model = await tmImage.load(modelURL, metadataURL);
               maxPredictions = model.getTotalClasses();
               labelContainer = document.getElementById("label-container");
@@ -148,11 +148,11 @@
           if (!file) return;
 
           const img = document.getElementById("uploaded-image");
-          img.src = URL.createObjectURL(file);
+          img.src = window.URL.createObjectURL(file); // FIXED
           img.style.display = "block";
 
           img.onload = async () => {
-              await predict(img);
+              await predict(img); // only run after image is loaded
           };
 
           if (webcam) {
