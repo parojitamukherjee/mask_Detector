@@ -39,7 +39,7 @@
       letter-spacing: 1px;
     }
 
-    button {
+    button, input[type="file"] {
       padding: 12px 25px;
       font-size: 1rem;
       border: none;
@@ -48,19 +48,22 @@
       color: white;
       font-weight: bold;
       cursor: pointer;
-      margin-bottom: 20px;
+      margin-bottom: 15px;
       transition: transform 0.2s ease-in-out;
     }
 
-    button:hover {
+    button:hover, input[type="file"]:hover {
       transform: scale(1.05);
     }
 
-    #webcam-container canvas {
+    #webcam-container canvas, #uploaded-image {
       border: 4px solid #ff6a00;
       border-radius: 15px;
       box-shadow: 0 0 20px rgba(255, 106, 0, 0.8);
       margin-bottom: 20px;
+      width: 280px;
+      height: 280px;
+      object-fit: cover;
     }
 
     #label-container div {
@@ -91,8 +94,11 @@
 <body>
   <div class="app-container">
     <h1>😷 AI Mask Detector</h1>
-    <button type="button" onclick="init()">Start Detection</button>
+    <button type="button" onclick="init()">Start Webcam Detection</button>
+    <br>
+    <input type="file" accept="image/*" onchange="handleImageUpload(event)">
     <div id="webcam-container"></div>
+    <img id="uploaded-image" style="display:none;">
     <div id="label-container"></div>
   </div>
 
@@ -100,41 +106,70 @@
       const URL = "./my_model/";
       let model, webcam, labelContainer, maxPredictions;
 
+      // Load model once
+      async function loadModel() {
+          if (!model) {
+              const modelURL = URL + "model.json";
+              const metadataURL = URL + "metadata.json";
+              model = await tmImage.load(modelURL, metadataURL);
+              maxPredictions = model.getTotalClasses();
+              labelContainer = document.getElementById("label-container");
+              labelContainer.innerHTML = "";
+              for (let i = 0; i < maxPredictions; i++) {
+                  labelContainer.appendChild(document.createElement("div"));
+              }
+          }
+      }
+
+      // Webcam detection
       async function init() {
-          const modelURL = URL + "model.json";
-          const metadataURL = URL + "metadata.json";
-
-          model = await tmImage.load(modelURL, metadataURL);
-          maxPredictions = model.getTotalClasses();
-
+          await loadModel();
           const flip = true;
           webcam = new tmImage.Webcam(280, 280, flip);
           await webcam.setup();
           await webcam.play();
           window.requestAnimationFrame(loop);
 
+          document.getElementById("webcam-container").innerHTML = "";
           document.getElementById("webcam-container").appendChild(webcam.canvas);
-          labelContainer = document.getElementById("label-container");
-          for (let i = 0; i < maxPredictions; i++) {
-              const div = document.createElement("div");
-              labelContainer.appendChild(div);
-          }
+          document.getElementById("uploaded-image").style.display = "none";
       }
 
       async function loop() {
           webcam.update();
-          await predict();
+          await predict(webcam.canvas);
           window.requestAnimationFrame(loop);
       }
 
-      async function predict() {
-          const prediction = await model.predict(webcam.canvas);
+      // Upload detection
+      async function handleImageUpload(event) {
+          await loadModel();
+          const file = event.target.files[0];
+          if (!file) return;
+
+          const img = document.getElementById("uploaded-image");
+          img.src = URL.createObjectURL(file);
+          img.style.display = "block";
+
+          img.onload = async () => {
+              await predict(img);
+          };
+
+          if (webcam) {
+              webcam.stop();
+          }
+          document.getElementById("webcam-container").innerHTML = "";
+      }
+
+      // Prediction function
+      async function predict(input) {
+          const prediction = await model.predict(input);
           for (let i = 0; i < maxPredictions; i++) {
               const className = prediction[i].className;
               const probability = prediction[i].probability.toFixed(2);
 
               let classStyle = "";
-              if (className.toLowerCase().includes("mask")) {
+              if (className.toLowerCase().includes("mask") && !className.toLowerCase().includes("improper")) {
                   classStyle = "mask";
               } else if (className.toLowerCase().includes("no")) {
                   classStyle = "no-mask";
